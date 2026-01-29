@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Chef: The AI Kitchen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0c0c;
+            color: #f3f4f6;
+        }
+        .serif {
+            font-family: 'Playfair Display', serif;
+        }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "@google/genai": "https://esm.sh/@google/genai@1.38.0"
+      }
+    }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="module">
+        import React, { useState, useMemo } from 'react';
+        import ReactDOM from 'react-dom/client';
+        import { GoogleGenAI } from '@google/genai';
+
+        // ============ TYPES ============
+        const GameState = {
+          LOBBY: 'LOBBY',
+          ORDERING: 'ORDERING',
+          COOKING: 'COOKING',
+          RESULT: 'RESULT'
+        };
+
+        // ============ CONSTANTS ============
+        const INGREDIENTS = [
+          // --- MAINS (PROTEINS) ---
+          { id: 'p1', name: 'Ribeye Steak', category: 'Main', emoji: '🥩' },
+          { id: 'p2', name: 'Chicken', category: 'Main', emoji: '🍗' },
+          { id: 'p3', name: 'Salmon', category: 'Main', emoji: '🍣' },
+          { id: 'p4', name: 'Shrimp', category: 'Main', emoji: '🍤' },
+          { id: 'p5', name: 'Tofu', category: 'Main', emoji: '⬜' },
+          { id: 'p6', name: 'Egg', category: 'Main', emoji: '🥚' },
+          { id: 'p7', name: 'Duck', category: 'Main', emoji: '🦆' },
+          { id: 'p8', name: 'Scallops', category: 'Main', emoji: '🐚' },
+          { id: 'p9', name: 'Octopus', category: 'Main', emoji: '🐙' },
+          { id: 'p10', name: 'Lamb', category: 'Main', emoji: '🍖' },
+          { id: 'p11', name: 'Pork Belly', category: 'Main', emoji: '🥓' },
+          { id: 'p12', name: 'Tempeh', category: 'Main', emoji: '🧇' },
+          { id: 'p13', name: 'Lobster', category: 'Main', emoji: '🦞' },
+          { id: 'p14', name: 'Crab', category: 'Main', emoji: '🦀' },
+          { id: 'p15', name: 'Cod', category: 'Main', emoji: '🐟' },
+          { id: 'p16', name: 'Beef Mince', category: 'Main', emoji: '🍔' },
+          { id: 'p17', name: 'Turkey', category: 'Main', emoji: '🦃' },
+          { id: 'p18', name: 'Bacon', category: 'Main', emoji: '🥓' },
+          { id: 'p19', name: 'Squid', category: 'Main', emoji: '🦑' },
+          { id: 'p20', name: 'Ham', category: 'Main', emoji: '🍖' },
+          { id: 'p21', name: 'Sausage', category: 'Main', emoji: '🌭' },
+          { id: 'p22', name: 'Deer', category: 'Main', emoji: '🦌' },
+          { id: 'p23', name: 'Clams', category: 'Main', emoji: '🦪' },
+          { id: 'p24', name: 'Cheese Wheel', category: 'Main', emoji: '🧀' },
+
+          // --- VEGGIES ---
+          { id: 'v1', name: 'Mushroom', category: 'Veggie', emoji: '🍄' },
+          { id: 'v2', name: 'Broccoli', category: 'Veggie', emoji: '🥦' },
+          { id: 'v3', name: 'Tomato', category: 'Veggie', emoji: '🍅' },
+          { id: 'v4', name: 'Asparagus', category: 'Veggie', emoji: '🎋' },
+          { id: 'v5', name: 'Spinach', category: 'Veggie', emoji: '🍃' },
+          { id: 'v6', name: 'Carrot', category: 'Veggie', emoji: '🥕' },
+          { id: 'v7', name: 'Onion', category: 'Veggie', emoji: '🧅' },
+          { id: 'v8', name: 'Bok Choy', category: 'Veggie', emoji: '🥬' },
+          { id: 'v9', name: 'Corn', category: 'Veggie', emoji: '🌽' },
+          { id: 'v10', name: 'Eggplant', category: 'Veggie', emoji: '🍆' },
+          { id: 'v11', name: 'Bell Pepper', category: 'Veggie', emoji: '🫑' },
+          { id: 'v12', name: 'Cucumber', category: 'Veggie', emoji: '🥒' },
+          { id: 'v13', name: 'Avocado', category: 'Veggie', emoji: '🥑' },
+          { id: 'v14', name: 'Potato', category: 'Veggie', emoji: '🥔' },
+          { id: 'v15', name: 'Sweet Potato', category: 'Veggie', emoji: '🍠' },
+          { id: 'v16', name: 'Garlic', category: 'Veggie', emoji: '🧄' },
+          { id: 'v17', name: 'Chili', category: 'Veggie', emoji: '🌶️' },
+          { id: 'v18', name: 'Lettuce', category: 'Veggie', emoji: '🥬' },
+          { id: 'v19', name: 'Pumpkin', category: 'Veggie', emoji: '🎃' },
+          { id: 'v20', name: 'Cabbage', category: 'Veggie', emoji: '🥬' },
+          { id: 'v21', name: 'Peas', category: 'Veggie', emoji: '🫛' },
+          { id: 'v22', name: 'Radish', category: 'Veggie', emoji: '🍥' },
+          { id: 'v23', name: 'Olives', category: 'Veggie', emoji: '🫒' },
+          { id: 'v24', name: 'Zucchini', category: 'Veggie', emoji: '🥒' },
+          { id: 'v25', name: 'Ginger', category: 'Veggie', emoji: '🪵' },
+          { id: 'v26', name: 'Beetroot', category: 'Veggie', emoji: '🏮' },
+          { id: 'v27', name: 'Leek', category: 'Veggie', emoji: '🎋' },
+          { id: 'v28', name: 'Brussels Sprouts', category: 'Veggie', emoji: '🥬' },
+          { id: 'v29', name: 'Cauliflower', category: 'Veggie', emoji: '🥦' },
+          { id: 'v30', name: 'Artichoke', category: 'Veggie', emoji: '🥬' },
+
+          // --- BASES (CARBS) ---
+          { id: 'g1', name: 'Rice', category: 'Base', emoji: '🍚' },
+          { id: 'g2', name: 'Pasta', category: 'Base', emoji: '🍝' },
+          { id: 'g3', name: 'Noodles', category: 'Base', emoji: '🍜' },
+          { id: 'g4', name: 'Bread', category: 'Base', emoji: '🍞' },
+          { id: 'g5', name: 'Bagel', category: 'Base', emoji: '🥯' },
+          { id: 'g6', name: 'Croissant', category: 'Base', emoji: '🥐' },
+          { id: 'g7', name: 'Baguette', category: 'Base', emoji: '🥖' },
+          { id: 'g8', name: 'Tortilla', category: 'Base', emoji: '🌮' },
+          { id: 'g9', name: 'Pretzel', category: 'Base', emoji: '🥨' },
+          { id: 'g10', name: 'Pancakes', category: 'Base', emoji: '🥞' },
+          { id: 'g11', name: 'Waffle', category: 'Base', emoji: '🧇' },
+          { id: 'g12', name: 'Rice Cake', category: 'Base', emoji: '🍘' },
+          { id: 'g13', name: 'Dumpling', category: 'Base', emoji: '🥟' },
+          { id: 'g14', name: 'Pizza Base', category: 'Base', emoji: '🍕' },
+          { id: 'g15', name: 'Quinoa', category: 'Base', emoji: '🥣' },
+          { id: 'g16', name: 'Couscous', category: 'Base', emoji: '🍲' },
+          { id: 'g17', name: 'Gnocchi', category: 'Base', emoji: '🥟' },
+
+          // --- FLAVORS ---
+          { id: 's1', name: 'Salt', category: 'Flavor', emoji: '🧂' },
+          { id: 's2', name: 'Black Pepper', category: 'Flavor', emoji: '⚱️' },
+          { id: 's3', name: 'Soy Sauce', category: 'Flavor', emoji: '🧴' },
+          { id: 's4', name: 'Miso', category: 'Flavor', emoji: '🥣' },
+          { id: 's5', name: 'Honey', category: 'Flavor', emoji: '🍯' },
+          { id: 's6', name: 'Maple Syrup', category: 'Flavor', emoji: '🥞' },
+          { id: 's7', name: 'Butter', category: 'Flavor', emoji: '🧈' },
+          { id: 's8', name: 'Cheese', category: 'Flavor', emoji: '🧀' },
+          { id: 's9', name: 'Milk', category: 'Flavor', emoji: '🥛' },
+          { id: 's10', name: 'Cream', category: 'Flavor', emoji: '🍦' },
+          { id: 's11', name: 'Olive Oil', category: 'Flavor', emoji: '🧴' },
+          { id: 's12', name: 'Vinegar', category: 'Flavor', emoji: '🧴' },
+          { id: 's13', name: 'Basil', category: 'Flavor', emoji: '🌿' },
+          { id: 's14', name: 'Mint', category: 'Flavor', emoji: '🍃' },
+          { id: 's15', name: 'Cilantro', category: 'Flavor', emoji: '🌿' },
+          { id: 's16', name: 'Rosemary', category: 'Flavor', emoji: '🌲' },
+          { id: 's17', name: 'Thyme', category: 'Flavor', emoji: '🌿' },
+          { id: 's18', name: 'Parsley', category: 'Flavor', emoji: '🌿' },
+          { id: 's19', name: 'Lemon', category: 'Flavor', emoji: '🍋' },
+          { id: 's20', name: 'Lime', category: 'Flavor', emoji: '🍋' },
+          { id: 's21', name: 'Orange', category: 'Flavor', emoji: '🍊' },
+          { id: 's22', name: 'Apple', category: 'Flavor', emoji: '🍎' },
+          { id: 's23', name: 'Strawberry', category: 'Flavor', emoji: '🍓' },
+          { id: 's24', name: 'Blueberry', category: 'Flavor', emoji: '🫐' },
+          { id: 's25', name: 'Pineapple', category: 'Flavor', emoji: '🍍' },
+          { id: 's26', name: 'Coconut', category: 'Flavor', emoji: '🥥' },
+          { id: 's27', name: 'Peanuts', category: 'Flavor', emoji: '🥜' },
+          { id: 's28', name: 'Chestnut', category: 'Flavor', emoji: '🌰' },
+          { id: 's29', name: 'Mustard', category: 'Flavor', emoji: '🧴' },
+          { id: 's30', name: 'Ketchup', category: 'Flavor', emoji: '🥫' },
+          { id: 's31', name: 'Mayonnaise', category: 'Flavor', emoji: '🧴' },
+          { id: 's32', name: 'Hot Sauce', category: 'Flavor', emoji: '🔥' },
+          { id: 's33', name: 'Curry', category: 'Flavor', emoji: '🍛' },
+          { id: 's34', name: 'Wasabi', category: 'Flavor', emoji: '🟢' },
+          { id: 's35', name: 'Sugar', category: 'Flavor', emoji: '🍬' },
+          { id: 's36', name: 'Chocolate', category: 'Flavor', emoji: '🍫' },
+          { id: 's37', name: 'Coffee', category: 'Flavor', emoji: '☕' },
+          { id: 's38', name: 'Wine', category: 'Flavor', emoji: '🍷' },
+          { id: 's39', name: 'Beer', category: 'Flavor', emoji: '🍺' },
+          { id: 's40', name: 'Sake', category: 'Flavor', emoji: '🍶' },
+        ];
+
+        const METHODS = [
+          { id: 'm1', name: 'Grill', description: 'Gives a smoky, charred flavor.' },
+          { id: 'm2', name: 'Fry', description: 'Makes things crispy and golden.' },
+          { id: 'm3', name: 'Boil', description: 'Good for soups and soft textures.' },
+          { id: 'm4', name: 'Bake', description: 'Even heat for roasting.' },
+          { id: 'm5', name: 'Raw', description: 'Keep it fresh and simple.' },
+        ];
+
+        // ============ GEMINI SERVICE ============
+        // Note: You'll need to replace 'YOUR_API_KEY_HERE' with your actual Gemini API key
+        const ai = new GoogleGenAI({ apiKey: 'YOUR_API_KEY_HERE' });
+
+        const geminiService = {
+          async generateCustomer() {
+            const response = await ai.models.generateContent({
+              model: 'gemini-3-flash-preview',
+              contents: `Create a highly realistic and diverse customer for a cooking game. 
+              Give them a unique name and a short, evocative bio.
+              
+              The CRAVING must be focus EXCLUSIVELY on flavors, textures, and occasions. 
+              DO NOT MENTION SPECIFIC INGREDIENTS (like "salmon" or "bread") in the craving.
+              
+              Examples of good cravings:
+              - "A sophisticated brunch dish that perfectly balances sharp saltiness with a lingering, syrupy sweetness."
+              - "Something deeply umami and rich for a rainy midnight snack, but with a surprising, airy crunch."
+              - "A light, citrus-forward lunch that feels bright, tangy, and refreshing like a coastal breeze."
+              - "A decadent, velvety, and intensely spicy dish that warms my heart on a cold winter evening."
+              - "An earthy, savory morning meal that is incredibly filling and has a rustic, smoky finish."
+              - "A play on textures: something creamy and smooth contrasting with a sharp, vinegar-based acidity."
+
+              The DISLIKE should be a specific ingredient or texture (e.g., 'anything slimy', 'cilantro', 'raw onions', 'cloying sweetness').
+              
+              Make the difficulty level match the complexity of the flavor request.`,
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    description: { type: "string" },
+                    craving: { type: "string" },
+                    dislike: { type: "string" },
+                    difficulty: { type: "string", enum: ['Easy', 'Medium', 'Hard'] },
+                  },
+                  required: ["name", "description", "craving", "dislike", "difficulty"]
+                }
+              }
+            });
+
+            const data = JSON.parse(response.text);
+            return {
+              ...data,
+              avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.name}`
+            };
+          },
+
+          async reviewDish(customer, dish) {
+            const prompt = `
+              You are ${customer.name}. I cooked a dish for you called "${dish.name}".
+              Ingredients: ${dish.ingredients.map(i => i.name).join(', ')}.
+              Method: ${dish.method.name}.
+              
+              Your Preferences:
+              - CRAVING (Flavor Profile): ${customer.craving}
+              - HATES: ${customer.dislike}
+              
+              Rate the dish on:
+              1. Taste (How well the flavors of the ingredients chosen match your abstract flavor craving)
+              2. Look (Does the plating and ingredient choice sound appetizing?)
+              3. Vibe (Does it fit your personality and the specific occasion you craved?)
+
+              CRITICAL: Be extremely precise with your score (0-100). Do NOT use round numbers (like 80, 90). Be diverse and unexpected but fair.
+              Return a funny, short, and highly personal comment.
+            `;
+
+            const response = await ai.models.generateContent({
+              model: 'gemini-3-flash-preview',
+              contents: prompt,
+              config: {
+                temperature: 1.0,
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number", description: "The overall total score out of 100" },
+                    taste: { type: "number", description: "Score for taste out of 100" },
+                    look: { type: "number", description: "Score for look out of 100" },
+                    vibe: { type: "number", description: "Score for vibe out of 100" },
+                    comment: { type: "string" }
+                  },
+                  required: ["score", "taste", "look", "vibe", "comment"]
+                }
+              }
+            });
+
+            return JSON.parse(response.text);
+          },
+
+          async generateDishImage(dish) {
+            const prompt = `A beautiful, colorful, professional food photography shot of: "${dish.name}". 
+            Features: ${dish.ingredients.map(i => i.name).join(', ')}. 
+            Cooked: ${dish.method.name}. 
+            High-end plating, bright natural lighting, vibrant ingredients, macro shot, 4k.`;
+
+            const response = await ai.models.generateContent({
+              model: 'gemini-2.5-flash-image',
+              contents: { parts: [{ text: prompt }] },
+              config: {
+                imageConfig: {
+                  aspectRatio: "1:1",
+                }
+              }
+            });
+
+            for (const part of response.candidates?.[0]?.content?.parts || []) {
+              if (part.inlineData) {
+                return `data:image/png;base64,${part.inlineData.data}`;
+              }
+            }
+            return undefined;
+          }
+        };
+
+        // ============ COMPONENTS ============
+        const LoadingScreen = ({ message }) => (
+          React.createElement('div', { className: "flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-white p-6" },
+            React.createElement('div', { className: "w-12 h-12 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mb-6" }),
+            React.createElement('h2', { className: "text-2xl font-bold italic text-center max-w-xs" }, message)
+          )
+        );
+
+        const EmojiIcon = ({ emoji, className }) => (
+          React.createElement('div', { className: `${className} bg-zinc-900 flex items-center justify-center rounded-2xl border border-zinc-800 shadow-inner group-hover:bg-zinc-800 transition-colors` },
+            React.createElement('span', { className: "text-5xl select-none transform transition-transform group-hover:scale-125 duration-300" }, emoji)
+          )
+        );
+
+        const App = () => {
+          const [gameState, setGameState] = useState(GameState.LOBBY);
+          const [customer, setCustomer] = useState(null);
+          const [currentDish, setCurrentDish] = useState({
+            name: '',
+            ingredients: [],
+            method: METHODS[0],
+          });
+          const [review, setReview] = useState(null);
+          const [isLoading, setIsLoading] = useState(false);
+          const [loadingMsg, setLoadingMsg] = useState('');
+
+          const startGame = async () => {
+            setIsLoading(true);
+            setLoadingMsg("Checking the reservation list...");
+            try {
+              const newCustomer = await geminiService.generateCustomer();
+              setCustomer(newCustomer);
+              setGameState(GameState.ORDERING);
+            } catch (e) {
+              alert("Error starting game. Try again!");
+            } finally {
+              setIsLoading(false);
+            }
+          };
+
+          const startCooking = () => {
+            setCurrentDish({ name: '', ingredients: [], method: METHODS[0] });
+            setGameState(GameState.COOKING);
+          };
+
+          const finishCooking = async () => {
+            if (currentDish.ingredients.length === 0) return alert("You need ingredients to cook!");
+            if (!currentDish.name.trim()) return alert("Give your dish a cool name!");
+
+            setIsLoading(true);
+            setLoadingMsg("Chef is plating the masterpiece...");
+            try {
+              const [rev, img] = await Promise.all([
+                geminiService.reviewDish(customer, currentDish),
+                geminiService.generateDishImage(currentDish)
+              ]);
+              setReview({ ...rev, visualUrl: img });
+              setGameState(GameState.RESULT);
+            } catch (e) {
+              alert("Something went wrong in the kitchen. Let's try again!");
+            } finally {
+              setIsLoading(false);
+            }
+          };
+
+          const toggleIngredient = (ing) => {
+            setCurrentDish(prev => {
+              const has = prev.ingredients.find(i => i.id === ing.id);
+              return {
+                ...prev,
+                ingredients: has ? prev.ingredients.filter(i => i.id !== ing.id) : [...prev.ingredients, ing]
+              };
+            });
+          };
+
+          const ingredientsByCat = useMemo(() => {
+            return INGREDIENTS.reduce((acc, i) => {
+              acc[i.category] = acc[i.category] || [];
+              acc[i.category].push(i);
+              return acc;
+            }, {});
+          }, []);
+
+          if (isLoading) return React.createElement(LoadingScreen, { message: loadingMsg });
+
+          return React.createElement('div', { className: "min-h-screen bg-zinc-950 text-white font-sans p-4 md:p-8" },
+            // Header
+            React.createElement('div', { className: "max-w-6xl mx-auto flex justify-between items-center mb-12" },
+              React.createElement('h1', { className: "text-3xl font-black italic tracking-tighter text-yellow-400" }, "QUICK CHEF"),
+              customer && gameState !== GameState.LOBBY && React.createElement('div', { className: "flex items-center gap-3 bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800" },
+                React.createElement('img', { src: customer.avatarUrl, className: "w-8 h-8 rounded-full bg-zinc-800", alt: "" }),
+                React.createElement('span', { className: "text-sm font-bold uppercase tracking-tight" }, customer.name + "'s Table")
+              )
+            ),
+
+            // Lobby
+            gameState === GameState.LOBBY && React.createElement('div', { className: "flex flex-col items-center justify-center py-20 text-center" },
+              React.createElement('div', { className: "relative mb-10 group" },
+                React.createElement('div', { className: "w-96 h-96 bg-zinc-900 rounded-full flex items-center justify-center text-9xl animate-pulse" }, "👨‍🍳"),
+                React.createElement('div', { className: "absolute inset-0 flex items-center justify-center" },
+                  React.createElement('div', { className: "bg-yellow-400 text-black px-8 py-3 font-black text-3xl -rotate-6 shadow-[0_10px_40px_rgba(250,204,21,0.4)] transition-transform group-hover:scale-125" }, "PLAY!")
+                )
+              ),
+              React.createElement('h2', { className: "text-5xl font-black mb-4 tracking-tight text-white" }, "READY TO COOK?"),
+              React.createElement('p', { className: "text-zinc-500 max-w-sm mb-10 text-lg" }, "Impress hungry customers with your creative dishes and get scored by AI!"),
+              React.createElement('button', { onClick: startGame, className: "bg-white text-black text-2xl font-black px-16 py-6 rounded-full hover:bg-yellow-400 hover:scale-110 transition-all shadow-2xl active:scale-95" }, "START SERVICE")
+            ),
+
+            // Ordering
+            gameState === GameState.ORDERING && customer && React.createElement('div', { className: "max-w-2xl mx-auto" },
+              React.createElement('div', { className: "bg-zinc-900 rounded-[2.5rem] p-10 border border-zinc-800 shadow-2xl mb-8 relative overflow-hidden" },
+                React.createElement('div', { className: "absolute top-0 right-0 p-6 opacity-10 font-black text-6xl italic select-none" }, "ORDER"),
+                React.createElement('div', { className: "flex gap-8 items-center mb-10" },
+                  React.createElement('img', { src: customer.avatarUrl, className: "w-32 h-32 rounded-3xl bg-zinc-800 shadow-2xl border-2 border-zinc-700", alt: "" }),
+                  React.createElement('div', null,
+                    React.createElement('h2', { className: "text-4xl font-black mb-2" }, customer.name),
+                    React.createElement('p', { className: "text-zinc-400 italic text-lg leading-relaxed" }, '"' + customer.description + '"')
+                  )
+                ),
+                React.createElement('div', { className: "grid grid-cols-1 gap-6" },
+                  React.createElement('div', { className: "bg-green-500/10 p-6 rounded-3xl border border-green-500/20" },
+                    React.createElement('p', { className: "text-xs font-bold uppercase tracking-widest text-green-500 mb-2" }, "The Craving"),
+                    React.createElement('p', { className: "text-2xl font-bold leading-tight text-white" }, customer.craving)
+                  ),
+                  React.createElement('div', { className: "bg-red-500/10 p-6 rounded-3xl border border-red-500/20" },
+                    React.createElement('p', { className: "text-xs font-bold uppercase tracking-widest text-red-500 mb-2" }, "Deal Breaker"),
+                    React.createElement('p', { className: "text-xl font-bold text-white" }, "NO " + customer.dislike)
+                  )
+                )
+              ),
+              React.createElement('button', { onClick: startCooking, className: "w-full bg-yellow-400 text-black py-6 rounded-3xl font-black text-3xl hover:bg-yellow-300 transition-colors shadow-xl active:scale-95" }, "LET'S COOK!")
+            ),
+
+            // Cooking
+            gameState === GameState.COOKING && React.createElement('div', { className: "max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 pb-20" },
+              React.createElement('div', { className: "lg:col-span-8 space-y-12" },
+                ...Object.entries(ingredientsByCat).map(([cat, items]) =>
+                  React.createElement('div', { key: cat },
+                    React.createElement('h3', { className: "text-xl font-black uppercase tracking-[0.2em] text-zinc-700 mb-6 flex items-center gap-4" },
+                      cat + 's',
+                      React.createElement('span', { className: "h-px flex-grow bg-zinc-900" })
+                    ),
+                    React.createElement('div', { className: "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" },
+                      ...items.map(i => {
+                        const active = currentDish.ingredients.find(ing => ing.id === i.id);
+                        return React.createElement('button', {
+                          key: i.id,
+                          onClick: () => toggleIngredient(i),
+                          className: `group relative p-3 rounded-[2rem] border-2 transition-all duration-300 ${active ? 'bg-zinc-800 border-yellow-400 scale-[1.02] shadow-2xl' : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700'}`
+                        },
+                          React.createElement(EmojiIcon, { emoji: i.emoji, className: "w-full aspect-square mb-3" }),
+                          React.createElement('span', { className: `text-sm font-bold uppercase tracking-tight transition-colors block text-center ${active ? 'text-yellow-400' : 'text-zinc-500 group-hover:text-white'}` }, i.name),
+                          active && React.createElement('div', { className: "absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 text-black rounded-full flex items-center justify-center font-black text-sm ring-4 ring-zinc-950" }, "✓")
+                        );
+                      })
+                    )
+                  )
+                ),
+                React.createElement('div', { className: "pt-8 pb-12" },
+                  React.createElement('h3', { className: "text-xl font-black uppercase tracking-[0.2em] text-zinc-700 mb-6 flex items-center gap-4" },
+                    "Cooking Style",
+                    React.createElement('span', { className: "h-px flex-grow bg-zinc-900" })
+                  ),
+                  React.createElement('div', { className: "flex flex-wrap gap-4" },
+                    ...METHODS.map(m =>
+                      React.createElement('button', {
+                        key: m.id,
+                        onClick: () => setCurrentDish({...currentDish, method: m}),
+                        className: `px-10 py-5 rounded-[1.5rem] font-black transition-all border-2 text-lg ${currentDish.method.id === m.id ? 'bg-yellow-400 text-black border-yellow-400 shadow-[0_10px_30px_rgba(250,204,21,0.3)] scale-105' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white'}`
+                      }, m.name)
+                    )
+                  )
+                )
+              ),
+              React.createElement('div', { className: "lg:col-span-4" },
+                React.createElement('div', { className: "bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-800 sticky top-24 shadow-2xl space-y-8" },
+                  React.createElement('div', null,
+                    React.createElement('h4', { className: "text-xs font-black text-zinc-500 uppercase mb-4 tracking-widest" }, "The Recipe"),
+                    React.createElement('div', { className: "space-y-6" },
+                      React.createElement('div', null,
+                        React.createElement('label', { className: "text-[10px] font-bold text-zinc-600 uppercase block mb-2 px-1 text-zinc-500" }, "Give it a Name"),
+                        React.createElement('input', {
+                          type: "text",
+                          value: currentDish.name,
+                          onChange: e => setCurrentDish({...currentDish, name: e.target.value}),
+                          placeholder: "Super Tasty...",
+                          className: "w-full bg-black rounded-2xl px-6 py-4 border-2 border-zinc-800 focus:border-yellow-400 outline-none transition-all font-bold text-xl placeholder:text-zinc-800 text-white"
+                        })
+                      ),
+                      React.createElement('div', null,
+                        React.createElement('label', { className: "text-[10px] font-bold text-zinc-600 uppercase block mb-2 px-1 text-zinc-500" }, `Selected (${currentDish.ingredients.length})`),
+                        React.createElement('div', { className: "flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1" },
+                          ...currentDish.ingredients.map(ing =>
+                            React.createElement('span', { key: ing.id, className: "bg-zinc-800 px-4 py-2 rounded-full text-[10px] font-black uppercase border border-zinc-700 text-zinc-300" },
+                              ing.emoji + ' ' + ing.name
+                            )
+                          ),
+                          currentDish.ingredients.length === 0 && React.createElement('span', { className: "text-zinc-700 italic text-sm py-2" }, "Add some ingredients!")
+                        )
+                      )
+                    )
+                  ),
+                  React.createElement('button', { onClick: finishCooking, className: "w-full bg-white text-black py-6 rounded-[2rem] font-black text-2xl hover:bg-yellow-400 hover:scale-[1.02] transition-all active:scale-95 shadow-xl" }, "SERVE THE DISH")
+                )
+              )
+            ),
+
+            // Result
+            gameState === GameState.RESULT && review && React.createElement('div', { className: "max-w-4xl mx-auto py-8" },
+              React.createElement('div', { className: "text-center mb-10" },
+                React.createElement('h2', { className: "text-8xl font-black mb-2 tracking-tighter italic text-yellow-400" }, review.score),
+                React.createElement('p', { className: "text-zinc-500 font-bold uppercase tracking-[0.4em] text-sm" }, "FINAL SCORE")
+              ),
+              React.createElement('div', { className: "bg-zinc-900 rounded-[3.5rem] p-10 border border-zinc-800 shadow-2xl space-y-12" },
+                React.createElement('div', { className: "flex flex-col md:flex-row gap-10 items-start" },
+                  React.createElement('div', { className: "w-full md:w-1/2" },
+                    React.createElement('div', { className: "relative group" },
+                      review.visualUrl ?
+                        React.createElement('img', { src: review.visualUrl, className: "w-full aspect-square object-cover rounded-[2.5rem] shadow-2xl border-4 border-zinc-800", alt: "The Dish" }) :
+                        React.createElement('div', { className: "w-full aspect-square bg-zinc-800 rounded-[2.5rem] flex items-center justify-center text-9xl" }, "🥘"),
+                      React.createElement('div', { className: "absolute -bottom-4 -right-4 bg-yellow-400 text-black px-6 py-2 rounded-xl font-black text-lg rotate-3 shadow-xl" }, currentDish.name)
+                    )
+                  ),
+                  React.createElement('div', { className: "w-full md:w-1/2 space-y-8" },
+                    React.createElement('div', { className: "space-y-4" },
+                      ...[
+                        { label: 'Taste', val: review.taste },
+                        { label: 'Look', val: review.look },
+                        { label: 'Vibe', val: review.vibe }
+                      ].map(item =>
+                        React.createElement('div', { key: item.label },
+                          React.createElement('div', { className: "flex justify-between items-end mb-1 px-1" },
+                            React.createElement('span', { className: "text-xs font-black uppercase tracking-widest text-zinc-500" }, item.label),
+                            React.createElement('span', { className: "text-sm font-bold text-white" }, item.val)
+                          ),
+                          React.createElement('div', { className: "h-2 w-full bg-black rounded-full overflow-hidden border border-zinc-800" },
+                            React.createElement('div', { className: "h-full bg-yellow-400/80 rounded-full", style: { width: `${item.val}%` } })
+                          )
+                        )
+                      )
+                    ),
+                    React.createElement('div', { className: "pt-4" },
+                      React.createElement('div', { className: "flex items-center gap-4 mb-4" },
+                        React.createElement('img', { src: customer?.avatarUrl, className: "w-16 h-16 rounded-2xl bg-zinc-800 shadow-xl border border-zinc-700", alt: "" }),
+                        React.createElement('p', { className: "text-lg font-black text-white" }, customer?.name + " says...")
+                      ),
+                      React.createElement('div', { className: "bg-black/40 p-8 rounded-3xl italic text-xl leading-relaxed text-zinc-300 border border-zinc-800/50" }, review.comment)
+                    )
+                  )
+                ),
+                React.createElement('div', { className: "flex flex-col sm:flex-row gap-4 pt-4" },
+                  React.createElement('button', { onClick: () => setGameState(GameState.LOBBY), className: "flex-1 border-2 border-zinc-800 py-6 rounded-[2rem] font-black text-zinc-500 hover:text-white hover:border-zinc-600 transition-all text-xl" }, "LOBBY"),
+                  React.createElement('button', { onClick: startGame, className: "flex-1 bg-white text-black py-6 rounded-[2rem] font-black text-2xl shadow-xl hover:bg-yellow-400 transition-all active:scale-95" }, "NEXT CUSTOMER")
+                )
+              )
+            )
+          );
+        };
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(React.StrictMode, null, React.createElement(App)));
+    </script>
+</body>
+</html>
